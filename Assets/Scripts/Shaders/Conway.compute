@@ -17,7 +17,7 @@ int Wrap(int x, int m) {
 }
 
 [numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID, uint3 pixelPos : SV_GroupThreadID)
+void CSMain (uint3 pixelPos : SV_DispatchThreadID)
 {
     const float4 alive = float4(0.f, 0.f, 0.f, 1.f);
     const float4 dead = float4(1.f, 1.f, 1.f, 1.f);
@@ -42,9 +42,11 @@ void CSMain (uint3 id : SV_DispatchThreadID, uint3 pixelPos : SV_GroupThreadID)
     if (all(inBuffer[uint2(pixelPos.x, bottom)] == alive)) liveNeighbors++;
     if (all(inBuffer[uint2(right, bottom)] == alive)) liveNeighbors++;
 
-    /*if (liveNeighbors > 3 || liveNeighbors < 2 || (liveNeighbors == 2 && all(inBuffer[pixelPos.xy] == dead))) outBuffer[pixelPos.xy] = dead;
-    else outBuffer[pixelPos.xy] = alive;*/
-
-    if (pixelPos.x % 2 == 0) outBuffer[pixelPos.xy] = dead;
+    if (liveNeighbors > 3 || liveNeighbors < 2 || (liveNeighbors == 2 && all(inBuffer[pixelPos.xy] == dead))) outBuffer[pixelPos.xy] = dead;
     else outBuffer[pixelPos.xy] = alive;
+
+    //if (pixelPos.x % 2 == 0) outBuffer[pixelPos.xy] = dead;
+    //else outBuffer[pixelPos.xy] = alive;
+
+    //outBuffer[id.xy] = float4(id.x / (float)width, id.y / (float)height, 1.f, 1.f);
 }

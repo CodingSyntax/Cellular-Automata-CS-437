@@ -1,0 +1,86 @@
+#include "HLSLSupport.cginc"
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+//RWTexture2D<float4> Result;
+RWByteAddressBuffer inBuffer;
+RWByteAddressBuffer outBuffer;
+
+//cbuffer
+CBUFFER_START(Size)
+	uint size;
+CBUFFER_END
+
+//uint GetId(uint x, uint y, uint z) {
+//	return x + (y * stride) + (z * stride * stride);
+//}
+
+[numthreads(4,4,4)]
+void CSMain (uint3 pos : SV_DispatchThreadID)
+{
+	uint num;
+	inBuffer.GetDimensions(num);
+
+	//TODO: evaluate whether this matters
+	//don't touch outer "shell" to prevent bounds checks
+	uint x = pos.x + 1;
+	uint y = pos.y + 1;
+	uint z = pos.z + 1;
+
+	if (x >= size || y >= size || z >= size) return;
+
+	uint square = size * size;
+
+	uint y_id = y * size;
+	uint z_id = z * square;
+	uint id = x + y_id + z_id;
+
+
+	uint liveNeighbors = 0;
+
+	if (inBuffer.Load((x - 1) + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + y_id + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + y_id + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + y_id + (z_id - square)) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
+
+
+	if (inBuffer.Load((x - 1) + (y_id - size) + z_id) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id - size) + z_id) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id - size) + z_id) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + y_id + z_id) == 1) liveNeighbors++;
+	//center
+	if (inBuffer.Load((x + 1) + y_id + z_id) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + (y_id + size) + z_id) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id + size) + z_id) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id + size) + z_id) == 1) liveNeighbors++;
+
+
+	if (inBuffer.Load((x - 1) + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + y_id + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + y_id + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + y_id + (z_id + square)) == 1) liveNeighbors++;
+
+	if (inBuffer.Load((x - 1) + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load(x + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
+	if (inBuffer.Load((x + 1) + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
+
+	//>= 13: live
+	// 10-12 stay
+	//< 10: die
+	if (liveNeighbors < 10 || (!inBuffer.Load(id) && liveNeighbors < 13)) outBuffer.Store(id, 0);
+	else outBuffer.Store(id, 1);
+}
