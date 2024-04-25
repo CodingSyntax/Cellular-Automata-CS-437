@@ -9,44 +9,47 @@ public class Automata3D : MonoBehaviour
     public ComputeShader shader;
     public GameObject cube;
 
-    Vector3 lastMousePos;
-
     private int kernelHandle;
     private ComputeBuffer inBuffer;
     private ComputeBuffer outBuffer;
 
     private int updateCount;
 
-    const int scale = 20;
-    const int bufferSize = scale * scale * scale;
+    const int scale = 30;
+    const int bits = scale * scale * scale;
+    const int UINTSIZE = sizeof(uint) * 8;
+    const int bufferSize = (bits + UINTSIZE - 1) / UINTSIZE;
 
     private bool paused;
     private bool oneFrame;
-
-    bool setPixel;
 
     // Start is called before the first frame update
     void Start()
     {
         kernelHandle = shader.FindKernel("CSMain");
-        shader.SetInt("Size", scale - 1);
-        inBuffer = new ComputeBuffer(bufferSize, 4);
-        outBuffer = new ComputeBuffer(bufferSize, 4);
-        bool[] data = Randomize();
+        shader.SetInt("size", scale);
+        
+        
+        inBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
+        outBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
+        uint[] data = Randomize();
         //create cubes
         for (int z = 0; z < scale; z++) {
             for (int y = 0; y < scale; y++) {
                 for (int x = 0; x < scale; x++) {
                     GameObject newCube = Instantiate(cube, new Vector3(x, y, z), Quaternion.identity, transform);
-                    newCube.SetActive(data[x + ((y + (z * scale)) * scale)]);
+                    newCube.SetActive(GetData(data, x + ((y + (z * scale)) * scale)));
                 }
             }
         }
         updateCount = 0;
         paused = true;
-        setPixel = false;
         oneFrame = false;
-        lastMousePos = Vector3.zero;
+    }
+
+    private void OnApplicationQuit() {
+        inBuffer.Dispose();
+        outBuffer.Dispose();
     }
 
     // Update is called once per frame
@@ -67,8 +70,8 @@ public class Automata3D : MonoBehaviour
                 updateCount = 0;
                 shader.SetBuffer(kernelHandle, "inBuffer", inBuffer);
                 shader.SetBuffer(kernelHandle, "outBuffer", outBuffer);
-
-                shader.Dispatch(kernelHandle, scale / 4, scale / 4, scale / 4);
+                const int s = scale + 3;
+                shader.Dispatch(kernelHandle, s / 4, s / 4, s / 4);
                 //swap buffers
                 var temp = inBuffer;
                 inBuffer = outBuffer;
@@ -81,8 +84,12 @@ public class Automata3D : MonoBehaviour
     }
 
     public void UpdateDisplay() {
-        byte[] data = new byte[bufferSize];
+        uint[] data = new uint[bufferSize];
         inBuffer.GetData(data);
+
+        foreach(uint i in data) {
+            Debug.Log(i);
+        }
 
         for (int z = 0; z < scale; z++) {
             for (int y = 0; y < scale; y++) {
@@ -90,44 +97,60 @@ public class Automata3D : MonoBehaviour
                     int index = x + ((y + (z * scale)) * scale);
                     GameObject newCube = transform.GetChild(index).gameObject;
                     
-                    newCube.SetActive(data[index] == 1);
-
-                    if (data[index] != 0) Debug.Log(data[index]);
+                    if (x == 0 || y == 0 || z == 0 || x == scale - 1 || y == scale - 1 || z == scale - 1) {
+                        newCube.SetActive(false);
+                    } else newCube.SetActive(GetData(data, index));
+                    //Debug.Log($"{index} -> {index / UINTSIZE} / {bufferSize}");
+                    //if (data[index / UINTSIZE] != 0) Debug.Log(data[index / UINTSIZE]);
                 }
             }
         }
     }
 
-    public bool[] Randomize() {
-        bool[] data = new bool[bufferSize];
+    private bool GetData(uint[] data, int bitIndex) {
+        int valueInd = bitIndex / UINTSIZE;
+        int bit = bitIndex & (UINTSIZE - 1); // i % 32
+
+        return (data[valueInd] & (1 << bit)) != 0;
+    }
+
+    private void SetData(uint[] data, int bitIndex, bool value) {
+        int valueInd = bitIndex / UINTSIZE;
+        int bit = bitIndex & (UINTSIZE - 1); // i % 32
+
+        if (value) data[valueInd] |= (uint)(1 << bit);
+        else data[valueInd] &= (uint)~(1 << bit);
+    }
+
+    public uint[] Randomize() {
+        uint[] data = new uint[bufferSize];
+        outBuffer.SetData(data);
         const int zScale = scale * scale;
-        const int front = bufferSize - zScale;
+        const int front = bits - zScale;
         const int top = zScale - scale;
         const int left = scale - 1;
 
         //shell is solid
-        //Back face (z = 0)
         for (int i = 0; i < zScale; i++) {
-            data[i] = true;
-        }
-        //Front face (z = scale - 1)
-        for (int i = front; i < bufferSize; i++) {
-            data[i] = true;
+            //Back face (z = 0)
+            SetData(data, i, true);
+            //Front face (z = scale - 1)
+            SetData(data, i + front, true);
         }
 
         for (int i = zScale; i < front; i += scale) {
             //Right face (x = 0)
-            data[i] = true;
+            SetData(data, i, true);
             //Left face (x = scale - 1)
-            data[i + left] = true;
+            SetData(data, i + left, true);
         }
 
         for (int z = zScale; z < front; z += zScale) {
             for (int x = 1; x < left; x++) {
                 //Bottom face (y = 0)
-                data[x + z] = true;
+                SetData(data, x + z, true);
                 //Top face (y = scale - 1)
-                data[x + top + z] = true;
+                SetData(data, x + top + z, true);
             }
         }
 
@@ -135,12 +158,13 @@ public class Automata3D : MonoBehaviour
         for (int z = zScale; z < front; z += zScale) {
             for (int y = scale; y < top; y += scale) {
                 for (int x = 1; x < left; x++) {
-                    data[x + y + z] = Random.Range(0, 2) == 1;
+                    SetData(data, x + y + z, Random.Range(0, 2) == 1);
                 }
             }
         }
 
-        inBuffer.SetData(System.Array.ConvertAll(data, b => b ? (byte)1 : (byte)0));
+        inBuffer.SetData(data);
+        //outBuffer.SetData(data);
         return data;
     }
 }

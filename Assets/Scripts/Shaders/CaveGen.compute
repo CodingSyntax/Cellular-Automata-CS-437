@@ -2,9 +2,8 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-//RWTexture2D<float4> Result;
+//RWStructuredBuffer<uint> inBuffer;
+//RWStructuredBuffer<uint> outBuffer;
 RWByteAddressBuffer inBuffer;
 RWByteAddressBuffer outBuffer;
 
@@ -17,20 +16,39 @@ CBUFFER_END
 //	return x + (y * stride) + (z * stride * stride);
 //}
 
+bool GetValue(uint i) {
+	uint valueInd = i / 8;
+	uint bit = i & 31; // i % 32
+
+	//return (inBuffer[valueInd] & (1 << bit)) != 0;
+	return (inBuffer.Load(valueInd) & (1 << bit)) != 0;
+}
+
+void SetValue(uint i, bool val) {
+	uint valueInd = i / 32;
+	uint bit = i & 31; // i % 32
+
+	/*if (val) outBuffer[valueInd] |= (1 << bit);
+	else outBuffer[valueInd] &= ~(1 << bit);*/
+}
+
 [numthreads(4,4,4)]
 void CSMain (uint3 pos : SV_DispatchThreadID)
 {
-	uint num;
+	uint num, stride;
+	//inBuffer.GetDimensions(num, stride);
 	inBuffer.GetDimensions(num);
 
 	//TODO: evaluate whether this matters
 	//don't touch outer "shell" to prevent bounds checks
-	uint x = pos.x + 1;
-	uint y = pos.y + 1;
-	uint z = pos.z + 1;
+	uint x = pos.x + 0;
+	uint y = pos.y + 0;
+	uint z = pos.z + 0;
 
-	if (x >= size || y >= size || z >= size) return;
-
+	//if (x == 5 && y == 6 && z == 7) {
+	//	outBuffer.Store(0, size);
+	//}
+	//return;
 	uint square = size * size;
 
 	uint y_id = y * size;
@@ -38,49 +56,63 @@ void CSMain (uint3 pos : SV_DispatchThreadID)
 	uint id = x + y_id + z_id;
 
 
+	uint valueInd = id / 8;
+	uint bit = id & 31; // i % 32
+
+	if (/*x % 2 == 0) {*/x == size - 1 || y == size - 1 || z == size - 1 || x == 0 || y == 0 || z == 0) {
+		//outBuffer.InterlockedOr(valueInd, 1 << bit);
+		outBuffer.InterlockedAnd(valueInd, ~(1 << bit));
+		return;
+	//	//outBuffer[valueInd] |= (1 << bit);
+	}
+	//return;
+	if (x >= size || y >= size || z >= size) return;
+
 	uint liveNeighbors = 0;
 
-	if (inBuffer.Load((x - 1) + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id - size) + (z_id - square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id - size) + (z_id - square))) liveNeighbors++;
+	if (GetValue(x + (y_id - size) + (z_id - square))) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id - size) + (z_id - square))) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + y_id + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + y_id + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + y_id + (z_id - square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + y_id + (z_id - square))) liveNeighbors++;
+	if (GetValue(x + y_id + (z_id - square))) liveNeighbors++;
+	if (GetValue((x + 1) + y_id + (z_id - square))) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id + size) + (z_id - square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id + size) + (z_id - square))) liveNeighbors++;
+	if (GetValue(x + (y_id + size) + (z_id - square))) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id + size) + (z_id - square))) liveNeighbors++;
 
 
-	if (inBuffer.Load((x - 1) + (y_id - size) + z_id) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id - size) + z_id) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id - size) + z_id) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id - size) + z_id)) liveNeighbors++;
+	if (GetValue(x + (y_id - size) + z_id)) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id - size) + z_id)) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + y_id + z_id) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + y_id + z_id)) liveNeighbors++;
 	//center
-	if (inBuffer.Load((x + 1) + y_id + z_id) == 1) liveNeighbors++;
+	if (GetValue((x + 1) + y_id + z_id)) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + (y_id + size) + z_id) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id + size) + z_id) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id + size) + z_id) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id + size) + z_id)) liveNeighbors++;
+	if (GetValue(x + (y_id + size) + z_id)) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id + size) + z_id)) liveNeighbors++;
 
 
-	if (inBuffer.Load((x - 1) + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id - size) + (z_id + square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id - size) + (z_id + square))) liveNeighbors++;
+	if (GetValue(x + (y_id - size) + (z_id + square))) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id - size) + (z_id + square))) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + y_id + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + y_id + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + y_id + (z_id + square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + y_id + (z_id + square))) liveNeighbors++;
+	if (GetValue(x + y_id + (z_id + square))) liveNeighbors++;
+	if (GetValue((x + 1) + y_id + (z_id + square))) liveNeighbors++;
 
-	if (inBuffer.Load((x - 1) + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load(x + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
-	if (inBuffer.Load((x + 1) + (y_id + size) + (z_id + square)) == 1) liveNeighbors++;
+	if (GetValue((x - 1) + (y_id + size) + (z_id + square))) liveNeighbors++;
+	if (GetValue(x + (y_id + size) + (z_id + square))) liveNeighbors++;
+	if (GetValue((x + 1) + (y_id + size) + (z_id + square))) liveNeighbors++;
 
 	//>= 13: live
 	// 10-12 stay
 	//< 10: die
-	if (liveNeighbors < 10 || (!inBuffer.Load(id) && liveNeighbors < 13)) outBuffer.Store(id, 0);
-	else outBuffer.Store(id, 1);
+
+
+	if (liveNeighbors < 13 || (!GetValue(id) && liveNeighbors < 15)) outBuffer.InterlockedAnd(valueInd, ~(1 << bit));
+	else outBuffer.InterlockedOr(valueInd, 1 << bit);
 }
