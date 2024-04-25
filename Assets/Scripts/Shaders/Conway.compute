@@ -1,0 +1,50 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> inBuffer;
+RWTexture2D<float4> outBuffer;
+
+
+
+
+int Wrap(int x, int m) {
+    if (x < 0) {
+        return x + m;
+    }
+    return x % m;
+}
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID, uint3 pixelPos : SV_GroupThreadID)
+{
+    const float4 alive = float4(0.f, 0.f, 0.f, 1.f);
+    const float4 dead = float4(1.f, 1.f, 1.f, 1.f);
+
+    uint width, height;
+    inBuffer.GetDimensions(width, height);
+
+    if (pixelPos.x >= width || pixelPos.y >= height) return;
+
+    int left = Wrap(pixelPos.x - 1, width);
+    int right = Wrap(pixelPos.x + 1, width);
+    int top = Wrap(pixelPos.y + 1, height);
+    int bottom = Wrap(pixelPos.y - 1, height);
+
+    int liveNeighbors = 0;
+    if (all(inBuffer[uint2(left, top)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(pixelPos.x, top)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(right, top)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(left, pixelPos.y)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(right, pixelPos.y)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(left, bottom)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(pixelPos.x, bottom)] == alive)) liveNeighbors++;
+    if (all(inBuffer[uint2(right, bottom)] == alive)) liveNeighbors++;
+
+    /*if (liveNeighbors > 3 || liveNeighbors < 2 || (liveNeighbors == 2 && all(inBuffer[pixelPos.xy] == dead))) outBuffer[pixelPos.xy] = dead;
+    else outBuffer[pixelPos.xy] = alive;*/
+
+    if (pixelPos.x % 2 == 0) outBuffer[pixelPos.xy] = dead;
+    else outBuffer[pixelPos.xy] = alive;
+}
