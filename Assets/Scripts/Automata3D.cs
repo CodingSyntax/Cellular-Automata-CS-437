@@ -55,11 +55,11 @@ public class Automata3D : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space)) {
+        if (Input.GetKeyDown(KeyCode.KeypadEnter)) {
             paused = !paused;
             Debug.Log("Paused: " + paused);
         }
-        if (Input.GetKeyDown(KeyCode.KeypadEnter)) {
+        if (Input.GetKeyDown(KeyCode.Space)) {
             oneFrame = true;
         }
 
