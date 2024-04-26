@@ -35,9 +35,7 @@ public class Automata3D : MonoBehaviour
         
         inBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
         outBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
-        uint[] data;
-        if (!randomCenterOnly) data = Randomize();
-        else data = RandomizeCenter();
+        uint[] data = _Randomize();
         //create cubes
         for (int z = 0; z < scale; z++) {
             for (int y = 0; y < scale; y++) {
@@ -51,6 +49,15 @@ public class Automata3D : MonoBehaviour
         updateCount = 0;
         paused = true;
         oneFrame = false;
+    }
+
+    private uint[] _Randomize(bool draw = false) {
+        uint[] data;
+        if (!randomCenterOnly) data = Randomize();
+        else data = RandomizeCenter();
+
+        if (draw) UpdateDisplay();
+        return data;
     }
 
     private void RegenShader() {
@@ -72,6 +79,10 @@ public class Automata3D : MonoBehaviour
         }
         if (Input.GetKeyDown(KeyCode.Space)) {
             oneFrame = true;
+        }
+
+        if (Input.GetKeyDown(KeyCode.R)) {
+            _Randomize(true);
         }
 
         if (regenShader) {
