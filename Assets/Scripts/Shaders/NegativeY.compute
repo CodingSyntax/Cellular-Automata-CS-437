@@ -57,29 +57,21 @@ void CSMain(uint3 pos : SV_DispatchThreadID)
 	uint valueInd = id / 8;
 	uint bit = id & 31; // i % 32
 
-	if (/*x % 2 == 0) {*/x == size - 1 || y == size - 1 || z == size - 1 || x == 0 || y == 0 || z == 0) {
-		//outBuffer.InterlockedOr(valueInd, 1 << bit);
+	if (x == size - 1 || y == size - 1 || z == size - 1 || x == 0 || z == 0) {
 		outBuffer.InterlockedAnd(valueInd, ~(1 << bit));
 		return;
-		//	//outBuffer[valueInd] |= (1 << bit);
+	}
+	else if (y == 0) {
+		outBuffer.InterlockedOr(valueInd, 1 << bit);
+		return;
 	}
 	//return;
 	if (x >= size || y >= size || z >= size) return;
 
-	uint liveNeighbors = 0;
+	//live if block above and below
+	//stay if block below
+	//die if not
 
-	if (GetValue(x + y_id + (z_id - square))) liveNeighbors++;
-	if (GetValue(x + (y_id - size) + z_id)) liveNeighbors++;
-	if (GetValue((x - 1) + y_id + z_id)) liveNeighbors++;
-	if (GetValue((x + 1) + y_id + z_id)) liveNeighbors++;
-	if (GetValue(x + (y_id + size) + z_id)) liveNeighbors++;
-	if (GetValue(x + y_id + (z_id + square))) liveNeighbors++;
-
-
-	//== 2: live
-	//=< 3: stay
-	// > 3: die
-
-	if (liveNeighbors != 1 && (liveNeighbors > 3 || (!GetValue(id) && liveNeighbors <= 3))) outBuffer.InterlockedAnd(valueInd, ~(1 << bit)); //die
+	if ((!GetValue(x + y_id + size + z_id) && !GetValue(x + y_id + z_id)) || (GetValue(x + y_id + z_id) && !GetValue(x + y_id - size + z_id))) outBuffer.InterlockedAnd(valueInd, ~(1 << bit)); //die
 	else outBuffer.InterlockedOr(valueInd, 1 << bit); //live
 }

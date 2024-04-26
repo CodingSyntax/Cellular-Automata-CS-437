@@ -82,7 +82,7 @@ public class Automata3D : MonoBehaviour
 
         if (!paused || oneFrame) {
             updateCount++;
-            if (updateCount > 4 || oneFrame) {
+            if (updateCount > 1 || oneFrame) {
                 updateCount = 0;
                 shader.SetBuffer(kernelHandle, "inBuffer", inBuffer);
                 shader.SetBuffer(kernelHandle, "outBuffer", outBuffer);
