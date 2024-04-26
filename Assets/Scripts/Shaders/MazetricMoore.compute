@@ -2,14 +2,12 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-//RWStructuredBuffer<uint> inBuffer;
-//RWStructuredBuffer<uint> outBuffer;
 RWByteAddressBuffer inBuffer;
 RWByteAddressBuffer outBuffer;
 
 //cbuffer
 CBUFFER_START(Size)
-	uint size;
+uint size;
 CBUFFER_END
 
 //uint GetId(uint x, uint y, uint z) {
@@ -32,8 +30,8 @@ void SetValue(uint i, bool val) {
 	else outBuffer[valueInd] &= ~(1 << bit);*/
 }
 
-[numthreads(4,4,4)]
-void CSMain (uint3 pos : SV_DispatchThreadID)
+[numthreads(4, 4, 4)]
+void CSMain(uint3 pos : SV_DispatchThreadID)
 {
 	uint num, stride;
 	//inBuffer.GetDimensions(num, stride);
@@ -63,7 +61,7 @@ void CSMain (uint3 pos : SV_DispatchThreadID)
 		//outBuffer.InterlockedOr(valueInd, 1 << bit);
 		outBuffer.InterlockedAnd(valueInd, ~(1 << bit));
 		return;
-	//	//outBuffer[valueInd] |= (1 << bit);
+		//	//outBuffer[valueInd] |= (1 << bit);
 	}
 	//return;
 	if (x >= size || y >= size || z >= size) return;
@@ -108,11 +106,10 @@ void CSMain (uint3 pos : SV_DispatchThreadID)
 	if (GetValue(x + (y_id + size) + (z_id + square))) liveNeighbors++;
 	if (GetValue((x + 1) + (y_id + size) + (z_id + square))) liveNeighbors++;
 
-	//>= 15: live
-	// 13-14 stay
-	//< 13: die
+	//== 9: live
+	//<= 12: stay
+	//> 12: die
 
-
-	if (liveNeighbors < 13 || (!GetValue(id) && liveNeighbors < 15)) outBuffer.InterlockedAnd(valueInd, ~(1 << bit)); //die
+	if (liveNeighbors != 3 && (liveNeighbors > 12 || (!GetValue(id) && liveNeighbors <= 12))) outBuffer.InterlockedAnd(valueInd, ~(1 << bit)); //die
 	else outBuffer.InterlockedOr(valueInd, 1 << bit); //live
 }

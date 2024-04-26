@@ -9,13 +9,16 @@ public class Automata3D : MonoBehaviour
     public ComputeShader shader;
     public GameObject cube;
 
+    public bool randomCenterOnly;
+    public bool regenShader;
+
     private int kernelHandle;
     private ComputeBuffer inBuffer;
     private ComputeBuffer outBuffer;
 
     private int updateCount;
 
-    const int scale = 30;
+    const int scale = 40;
     const int bits = scale * scale * scale;
     const int UINTSIZE = sizeof(uint) * 8;
     const int bufferSize = (bits + UINTSIZE - 1) / UINTSIZE;
@@ -32,7 +35,9 @@ public class Automata3D : MonoBehaviour
         
         inBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
         outBuffer = new ComputeBuffer(bufferSize, sizeof(uint));
-        uint[] data = Randomize();
+        uint[] data;
+        if (!randomCenterOnly) data = Randomize();
+        else data = RandomizeCenter();
         //create cubes
         for (int z = 0; z < scale; z++) {
             for (int y = 0; y < scale; y++) {
@@ -42,9 +47,15 @@ public class Automata3D : MonoBehaviour
                 }
             }
         }
+        StaticBatchingUtility.Combine(gameObject);
         updateCount = 0;
         paused = true;
         oneFrame = false;
+    }
+
+    private void RegenShader() {
+        kernelHandle = shader.FindKernel("CSMain");
+        shader.SetInt("size", scale);
     }
 
     private void OnApplicationQuit() {
@@ -55,12 +66,17 @@ public class Automata3D : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.KeypadEnter)) {
+        if (Input.GetKeyDown(KeyCode.P)) {
             paused = !paused;
             Debug.Log("Paused: " + paused);
         }
         if (Input.GetKeyDown(KeyCode.Space)) {
             oneFrame = true;
+        }
+
+        if (regenShader) {
+            RegenShader();
+            regenShader = false;
         }
 
 
@@ -86,10 +102,6 @@ public class Automata3D : MonoBehaviour
     public void UpdateDisplay() {
         uint[] data = new uint[bufferSize];
         inBuffer.GetData(data);
-
-        foreach(uint i in data) {
-            Debug.Log(i);
-        }
 
         for (int z = 0; z < scale; z++) {
             for (int y = 0; y < scale; y++) {
@@ -158,6 +170,27 @@ public class Automata3D : MonoBehaviour
         for (int z = zScale; z < front; z += zScale) {
             for (int y = scale; y < top; y += scale) {
                 for (int x = 1; x < left; x++) {
+                    SetData(data, x + y + z, Random.Range(0, 2) == 1);
+                }
+            }
+        }
+
+        inBuffer.SetData(data);
+        //outBuffer.SetData(data);
+        return data;
+    }
+
+    public uint[] RandomizeCenter() {
+        uint[] data = new uint[bufferSize];
+        outBuffer.SetData(data);
+        const int zScale = scale * scale;
+        const int randomSize = (scale / 2) - 4;
+
+
+        //Randomize interior
+        for (int z = zScale * randomSize; z < bits - (randomSize * zScale); z += zScale) {
+            for (int y = scale * randomSize; y < zScale - (randomSize * scale); y += scale) {
+                for (int x = randomSize; x < scale - randomSize; x++) {
                     SetData(data, x + y + z, Random.Range(0, 2) == 1);
                 }
             }
